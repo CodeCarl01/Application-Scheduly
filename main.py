@@ -20,6 +20,8 @@ class TimeSlot:
     end_time: time
     course: str
     is_temporary: bool = False
+    color: str = "lightblue"  # Couleur par défaut
+
 
 
 class ScheduleManager:
@@ -48,7 +50,7 @@ class ScheduleManager:
         return slots
 
     def add_time_slot(self, day: str, start_time: time, end_time: time,
-                      course: str, is_temporary: bool = False) -> bool:
+                      course: str, is_temporary: bool = False, color: str = "lightblue") -> bool:
         """Ajoute un créneau horaire dans l'emploi du temps."""
         if day not in self.schedule:
             return False
@@ -61,7 +63,7 @@ class ScheduleManager:
         if (start_time < self.day_start or start_time >= end_time):
             return False
 
-        new_slot = TimeSlot(start_time, end_time, course, is_temporary)
+        new_slot = TimeSlot(start_time, end_time, course, is_temporary, color)
 
         # Vérifie les conflits
         for slot in self.schedule[day]:
@@ -96,7 +98,8 @@ class ScheduleManager:
                     "start_time": slot.start_time.strftime("%H:%M"),
                     "end_time": slot.end_time.strftime("%H:%M"),
                     "course": slot.course,
-                    "is_temporary": slot.is_temporary
+                    "is_temporary": slot.is_temporary,
+                    "color": slot.color  # Sauvegarder la couleur
                 } for slot in slots
             ]
         with open("schedule.json", "w", encoding='utf-8') as f:
@@ -113,7 +116,8 @@ class ScheduleManager:
                             datetime.strptime(slot["start_time"], "%H:%M").time(),
                             datetime.strptime(slot["end_time"], "%H:%M").time(),
                             slot["course"],
-                            slot["is_temporary"]
+                            slot["is_temporary"],
+                            slot.get("color", "lightblue")  # Charger la couleur ou utiliser une couleur par défaut
                         ) for slot in slots
                     ]
         except FileNotFoundError:
@@ -135,7 +139,7 @@ class ScheduleManager:
 
 # Fonction principale de l'application
 def main(page: ft.Page):
-    page.title = "Gestionnaire d'Emploi du Temps"
+    page.title = "Scheduly"
     page.padding = 20
     page.scroll = "adaptive"
     page.theme_mode = ft.ThemeMode.LIGHT
@@ -665,7 +669,7 @@ def main(page: ft.Page):
             )
             page.update()
 
-        def get_cell_content(day: str, time_slot_str: str) -> ft.Text:
+        def get_cell_content(day: str, time_slot_str: str) -> ft.Container:
             """Génère le contenu d'une cellule de l'emploi du temps."""
             start_str, end_str = time_slot_str.split('-')
             slot_start_time = time_str_to_time(start_str)
@@ -677,36 +681,65 @@ def main(page: ft.Page):
             day_upper = day.upper()
             for slot in schedule_manager.schedule[day_upper]:
                 if slot.start_time <= slot_start_time < slot.end_time:
-                    return ft.Text(
-                        slot.course,
-                        weight="bold",
-                        color=ft.colors.BLACK,
-                        size=12,
+                    return ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Text(slot.course, weight="bold", color=ft.colors.BLACK, size=12),
+                                ft.IconButton(
+                                    icon=ft.icons.DELETE,
+                                    icon_size=16,
+                                    tooltip="Supprimer cet événement",
+                                    on_click=lambda e, d=day, s=slot.start_time: delete_event(d, s),
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        bgcolor=slot.color,  # Utilisation de la couleur associée
+                        padding=10,
+                        border_radius=5,
                     )
 
             return ft.Text("")  # Cellule vide si aucun contenu n'est trouvé
+
+        def delete_event(day: str, start_time: time):
+            """Supprime un événement spécifique d'une cellule."""
+            schedule_manager.remove_time_slot(day.upper(), start_time)
+            refresh_schedule()
 
         def show_add_event_dialog():
             """Affiche un formulaire pour ajouter un événement."""
             day_dropdown = ft.Dropdown(
                 label="Jour",
                 options=[ft.dropdown.Option(day.capitalize()) for day in schedule_manager.schedule.keys()],
-                width=200
+                width=200,
             )
             start_field = ft.TextField(label="Heure de début (ex: 6h)", width=200)
             end_field = ft.TextField(label="Heure de fin (ex: 7h)", width=200)
             course_field = ft.TextField(label="Cours", width=400)
+            color_dropdown = ft.Dropdown(
+                label="Couleur de l'événement",
+                options=[
+                    ft.dropdown.Option("lightblue", "Bleu"),
+                    ft.dropdown.Option("lightgreen", "Vert"),
+                    ft.dropdown.Option("lightcoral", "Rouge"),
+                    ft.dropdown.Option("lightyellow", "Jaune"),
+                ],
+                width=200,
+            )
             temp_checkbox = ft.Checkbox(label="Temporaire", value=False)
             error_text = ft.Text("", color=ft.colors.RED)
 
             def add_event(e):
                 """Ajoute un nouvel événement."""
-                if not all([
-                    day_dropdown.value,
-                    start_field.value,
-                    end_field.value,
-                    course_field.value
-                ]):
+                if not all(
+                        [
+                            day_dropdown.value,
+                            start_field.value,
+                            end_field.value,
+                            course_field.value,
+                            color_dropdown.value,
+                        ]
+                ):
                     error_text.value = "Tous les champs sont obligatoires."
                     page.update()
                     return
@@ -722,7 +755,12 @@ def main(page: ft.Page):
                 day_upper = day_dropdown.value.upper()
 
                 if schedule_manager.add_time_slot(
-                        day_upper, start, end, course_field.value, temp_checkbox.value
+                        day_upper,
+                        start,
+                        end,
+                        course_field.value,
+                        temp_checkbox.value,
+                        color_dropdown.value,  # Transmet la couleur choisie
                 ):
                     error_text.value = ""
                     page.dialog.open = False
@@ -735,18 +773,21 @@ def main(page: ft.Page):
 
             page.dialog = ft.AlertDialog(
                 title=ft.Text("Ajouter un événement"),
-                content=ft.Column([
-                    day_dropdown,
-                    start_field,
-                    end_field,
-                    course_field,
-                    temp_checkbox,
-                    error_text
-                ]),
+                content=ft.Column(
+                    [
+                        day_dropdown,
+                        start_field,
+                        end_field,
+                        course_field,
+                        color_dropdown,
+                        temp_checkbox,
+                        error_text,
+                    ]
+                ),
                 actions=[
                     ft.TextButton("Annuler", on_click=lambda e: close_dialog()),
-                    add_button
-                ]
+                    add_button,
+                ],
             )
             page.dialog.open = True
             page.update()
@@ -764,7 +805,7 @@ def main(page: ft.Page):
             icon=ft.icons.ADD,
             bgcolor=ft.colors.BLUE,
             on_click=lambda e: show_add_event_dialog(),
-            tooltip="Ajouter un événement"
+            tooltip="Ajouter un événement",
         )
 
         # Rafraîchir l'emploi du temps pour afficher les données
