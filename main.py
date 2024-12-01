@@ -691,7 +691,7 @@ def main(page: ft.Page):
             day_dropdown = ft.Dropdown(
                 label="Jour",
                 options=[ft.dropdown.Option(day.capitalize()) for day in schedule_manager.schedule.keys()],
-                width=200,
+                width=200
             )
             start_field = ft.TextField(label="Heure de début (ex: 6h)", width=200)
             end_field = ft.TextField(label="Heure de fin (ex: 7h)", width=200)
@@ -701,14 +701,12 @@ def main(page: ft.Page):
 
             def add_event(e):
                 """Ajoute un nouvel événement."""
-                if not all(
-                        [
-                            day_dropdown.value,
-                            start_field.value,
-                            end_field.value,
-                            course_field.value,
-                        ]
-                ):
+                if not all([
+                    day_dropdown.value,
+                    start_field.value,
+                    end_field.value,
+                    course_field.value
+                ]):
                     error_text.value = "Tous les champs sont obligatoires."
                     page.update()
                     return
@@ -737,13 +735,18 @@ def main(page: ft.Page):
 
             page.dialog = ft.AlertDialog(
                 title=ft.Text("Ajouter un événement"),
-                content=ft.Column(
-                    [day_dropdown, start_field, end_field, course_field, temp_checkbox, error_text]
-                ),
+                content=ft.Column([
+                    day_dropdown,
+                    start_field,
+                    end_field,
+                    course_field,
+                    temp_checkbox,
+                    error_text
+                ]),
                 actions=[
                     ft.TextButton("Annuler", on_click=lambda e: close_dialog()),
-                    add_button,
-                ],
+                    add_button
+                ]
             )
             page.dialog.open = True
             page.update()
@@ -760,8 +763,8 @@ def main(page: ft.Page):
         add_event_button = ft.FloatingActionButton(
             icon=ft.icons.ADD,
             bgcolor=ft.colors.BLUE,
-            on_click=show_add_event_dialog,
-            tooltip="Ajouter un événement",
+            on_click=lambda e: show_add_event_dialog(),
+            tooltip="Ajouter un événement"
         )
 
         # Rafraîchir l'emploi du temps pour afficher les données
